@@ -8,9 +8,9 @@ def store_file(sock, dst, file_name):
     sock.send(pack("h", data_size))
     sock.send(file_name.encode())
     directory = os.path.dirname(dst)
-    if not os.path.exists(f'{directory}'):
-        os.makedirs(f'{directory}')
-    with open(f"{dst}", 'wb') as f:
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    with open(dst, 'wb') as f:
         while True:
             data = sock.recv(1024)
             if data:

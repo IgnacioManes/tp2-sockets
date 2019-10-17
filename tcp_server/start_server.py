@@ -9,8 +9,8 @@ def store_file(connection, storage_dir):
     size = unpack('h', size_data)
     print(size[0])
     file_name = connection.recv(size[0])
-    print(f"{file_name}")
-    with open(f"{storage_dir}/{file_name.decode()}", 'wb') as f:
+    print("{}".format(file_name))
+    with open("{}/{}".format(storage_dir, file_name.decode()), 'wb') as f:
         while True:
             data = connection.recv(1024)
             if data:
@@ -26,7 +26,7 @@ def send_file(connection, storage_dir):
     size = unpack('h', size_data)
     print(size[0])
     file_name = connection.recv(size[0])
-    with open(f"{storage_dir}/{file_name.decode()}", 'rb') as f:
+    with open("{}/{}".format(storage_dir, file_name.decode()), 'rb') as f:
         data = f.read(1024)
         while data:
             connection.send(data)
@@ -35,11 +35,11 @@ def send_file(connection, storage_dir):
 
 
 def start_server(server_address, storage_dir):
-    print(f"{os.getcwd()}")
-    print(f'TCP: start_server({server_address}, {storage_dir})')
+    print(os.getcwd())
+    print('TCP: start_server({}, {})'.format(server_address, storage_dir))
     close_connections = False
-    if not os.path.exists(f'{storage_dir}'):
-        os.makedirs(f'{storage_dir}')
+    if not os.path.exists(storage_dir):
+        os.makedirs(storage_dir)
     (server_host, server_port) = server_address
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind((server_host, server_port))

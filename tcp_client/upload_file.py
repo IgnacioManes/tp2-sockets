@@ -7,7 +7,7 @@ def send_file(sock, src, file_name):
     print(data_size)
     sock.send(pack("h", data_size))
     sock.send(file_name.encode())
-    with open(f"{src}", 'rb') as f:
+    with open(src, 'rb') as f:
         data = f.read(1024)
         while data:
             sock.send(data)
@@ -21,4 +21,3 @@ def upload_file(server_address, src, name):
         sock.connect(server_address)
         sock.send(b'u')
         send_file(sock, src, name)
-

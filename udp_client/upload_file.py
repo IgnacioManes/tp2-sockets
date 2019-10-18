@@ -1,6 +1,13 @@
 import json
 import os
 import socket
+import sys
+
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
+
+from udp_common import udp_common
 
 def upload_file(server_address, src, name):
   # TODO: Implementar UDP upload_file client
@@ -19,18 +26,4 @@ def upload_file(server_address, src, name):
 
     server_ack, addr = sock.recvfrom(1)
 
-    seq = 0
-    with open(src, 'rb') as f:
-      data = f.read(25)
-      while data:
-        ba1 = bytes([seq])
-        print(seq)
-        print(ba1)
-        ba2 = bytearray(data)
-        ba = ba1 + ba2
-        print(len(ba))
-        sock.sendto(ba, server_address)
-        data = f.read(25)
-        seq += 1
-    print('Successfully sent the file')
-  pass
+    udp_common.send_file(sock, server_address, src)

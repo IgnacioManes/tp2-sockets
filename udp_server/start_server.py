@@ -1,6 +1,9 @@
 import json
+import math
 import os
 import socket
+
+from udp_common import udp_common
 
 class UDPState:
     FRESH_START = 0
@@ -10,14 +13,18 @@ class UDPState:
 
 def store_file(sock, server_address, storage_dir, metadata):
     print(metadata)
+    total_chunks = math.ceil(metadata['filesize'] / 25)
+    chunks_received = 0
+    print("Need to get {} chunks".format(total_chunks))
     with open("{}/{}".format(storage_dir, metadata['filename']), 'wb') as f:
-        while True:
+        while chunks_received != total_chunks:
             data = sock.recv(1025)
+            chunks_received += 1
             seq = int(data[0])
             file_content = data[1:]
-            print(len(data))
-            print(seq)
-    print('Successfully get the file')
+            print("Got chunk {}/{} of length {}".format(chunks_received, total_chunks, len(file_content)))
+            f.write(data)
+    print('Successfully got the file')
 
 def start_server(server_address, storage_dir):
   # TODO: Implementar UDP server
@@ -45,11 +52,18 @@ def handle_connection(sock, server_address, storage_dir):
   state = UDPState.FRESH_START
 
   if state == UDPState.FRESH_START:
-    (addr, metadata) = handle_handshake(sock, server_address)
+    (client_addr, metadata) = handle_handshake(sock, server_address)
     state = UDPState.GOT_METADATA
   
   if state == UDPState.GOT_METADATA:
+    filename = metadata['filename']
+    dest_path = "{}/{}".format(storage_dir, filename)
+
     if metadata['action'] == 'u':
-      store_file(sock, addr, storage_dir, metadata)
+      filesize = metadata['filesize']
+      udp_common.receive_file(sock, client_addr, dest_path, filesize)
     elif metadata['action'] == 'd':
-      send_file(sock, addr, storage_dir, metadata)
+      filesize = os.path.getsize(dest_path)
+      filesize_raw = bytes(str(filesize), 'utf8')
+      sock.sendto(filesize_raw, client_addr)
+      udp_common.send_file(sock, client_addr, dest_path)

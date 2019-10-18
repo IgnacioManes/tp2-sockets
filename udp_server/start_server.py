@@ -1,3 +1,4 @@
+import collections
 import json
 import math
 import os
@@ -43,18 +44,27 @@ def start_server(server_address, storage_dir):
             handle_connection(sock, server_address, storage_dir)
 
 def handle_handshake(sock, server_address):
-    data_raw, addr = udp_common.recv_with_ack(
-        sock,
-        b'1',
-        1024,
-        None
-    )
-    print('received metadata and sent ack')
-    data_raw_str = data_raw.decode()
-    metadata = json.loads(data_raw_str)
-    print('metadata')
-    print(metadata)
-    return (addr, metadata)
+    while True:
+        time.sleep(2)
+        data_raw, addr = udp_common.recv_with_ack(
+            sock,
+            b'1',
+            1024,
+            None
+        )
+        print('received metadata and sent ack')
+        data_raw_str = data_raw.decode()
+        try:
+            metadata = json.loads(data_raw_str)
+            if isinstance(metadata, collections.Mapping):
+                print('metadata')
+                print(metadata)
+                return (addr, metadata)
+        except json.decoder.JSONDecodeError:
+            print('Got bogus data, ignoring', data_raw_str)
+            pass
+        else:
+            print('Got bogus data, ignoring', data_raw_str)
 
 def handle_connection(sock, server_address, storage_dir):
     state = UDPState.FRESH_START

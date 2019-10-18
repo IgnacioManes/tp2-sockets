@@ -205,7 +205,7 @@ def send_file(sock, server_address, file_path):
             3,
             expected_seq=3
         )
-    except RuntimeError:
+    except udp_common.udp_common.NoACKException:
         print("Did not get a FIN ack from other party, assume closed connection")
 
     print('Successfully sent the file')

@@ -21,31 +21,38 @@ def download_file(server_address, name, dst):
     }
     message_json = json.dumps(message)
 
-    udp_common.send_with_ack(
-        sock,
-        server_address,
-        message_json.encode(),
-        1,
-        2,
-        0,
-        max_retries=20,
-        expected_seq=0
-    )
-    print('sent metadata and got ack')
+    file_downloaded = False
 
-    server_filesize_raw, addr = udp_common.recv_with_ack(
-        sock,
-        b'1',
-        1024,
-        2,
-        1,
-        max_retries=20,
-        expected_seq=1
-    )
+    while not file_downloaded:
+        try:
+            udp_common.send_with_ack(
+                sock,
+                server_address,
+                message_json.encode(),
+                1,
+                2,
+                0,
+                max_retries=5,
+                expected_seq=0
+            )
+            print('sent metadata and got ack')
 
-    server_filesize = int(str(server_filesize_raw, 'utf8'))
+            server_filesize_raw, addr = udp_common.recv_with_ack(
+                sock,
+                b'1',
+                1024,
+                2,
+                1,
+                max_retries=5,
+                expected_seq=1
+            )
 
-    print('got filesize {}'.format(server_filesize))
+            server_filesize = int(str(server_filesize_raw, 'utf8'))
 
-    udp_common.receive_file(sock, server_address, dst, int(server_filesize))
+            print('got filesize {}'.format(server_filesize))
+
+            udp_common.receive_file(sock, server_address, dst, int(server_filesize))
+            file_downloaded = True
+        except udp_common.udp_common.NoACKException:
+            pass
   pass

@@ -7,31 +7,32 @@ import os
 def store_file(connection, storage_dir):
     size_data = connection.recv(2)
     size = unpack('h', size_data)
-    print(size[0])
     file_name = connection.recv(size[0])
-    print("{}".format(file_name))
     with open("{}/{}".format(storage_dir, file_name.decode()), 'wb') as f:
-        while True:
+        data = connection.recv(1024)
+        while data:
+            f.write(data)
             data = connection.recv(1024)
-            if data:
-                f.write(data)
-            else:
-                print('No more data recv')
-                break
     print('Successfully get the file')
 
 
 def send_file(connection, storage_dir):
     size_data = connection.recv(2)
     size = unpack('h', size_data)
-    print(size[0])
     file_name = connection.recv(size[0])
-    with open("{}/{}".format(storage_dir, file_name.decode()), 'rb') as f:
-        data = f.read(1024)
-        while data:
-            connection.send(data)
+    if os.path.exists("{}/{}".format(storage_dir, file_name.decode())):
+        # envio una e representando que existe el archivo
+        connection.send(b'e')
+        with open("{}/{}".format(storage_dir, file_name.decode()), 'rb') as f:
             data = f.read(1024)
-    print('Successfully sent the file')
+            while data:
+                connection.send(data)
+                data = f.read(1024)
+        print('Successfully sent the file')
+    else:
+        # envio una i representando un inexistente
+        connection.send(b'i')
+        print("The file doesn't exist")
 
 
 def start_server(server_address, storage_dir):

@@ -1,3 +1,4 @@
+import os
 import socket
 from struct import *
 
@@ -17,7 +18,10 @@ def send_file(sock, src, file_name):
 
 def upload_file(server_address, src, name):
     print('TCP: upload_file({}, {}, {})'.format(server_address, src, name))
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.connect(server_address)
-        sock.send(b'u')
-        send_file(sock, src, name)
+    if os.path.exists(src):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.connect(server_address)
+            sock.send(b'u')
+            send_file(sock, src, name)
+    else:
+        print("The file doesn't exist")

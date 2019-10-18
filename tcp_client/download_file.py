@@ -8,17 +8,18 @@ def store_file(sock, dst, file_name):
     sock.send(pack("h", data_size))
     sock.send(file_name.encode())
     directory = os.path.dirname(dst)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    with open(dst, 'wb') as f:
-        while True:
+    file_exists = sock.recv(1)
+    if file_exists == b'e':
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        with open(dst, 'wb') as f:
             data = sock.recv(1024)
-            if data:
+            while data:
                 f.write(data)
-            else:
-                print('No more data recv')
-                break
-    print('Successfully get the file')
+                data = sock.recv(1024)
+        print('Successfully get the file')
+    elif file_exists == b'i':
+        print("The file doesn't exist")
 
 
 def download_file(server_address, name, dst):

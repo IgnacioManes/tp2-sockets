@@ -6,9 +6,14 @@ import time
 
 from udp_common import udp_common
 
+# A file is split into chunks of size CHUNK_SIZE
 CHUNK_SIZE = 25
+
+# One byte is used to specify the sequence number
 PACKET_SIZE = CHUNK_SIZE + 1
 
+# Sequence numbers are offset by this constant
+# to reserve space for special handshake ones
 SEQ_OFFSET = 10
 
 class WrongSeqException(Exception):
@@ -17,21 +22,29 @@ class WrongSeqException(Exception):
 class NoACKException(Exception):
     pass
 
+# Given a sequence number and a data byte array,
+# create a new byte array that has the sequence number prepended
 def seq_data(seq, data):
     seq_section = bytes([seq])
     data_section = bytearray(data)
     return seq_section + data_section
 
+# send a packet with a sequence number
 def sendto_seq(sock, addr, data, seq):
     message = seq_data(seq, data)
     sock.sendto(message, addr)
 
+# receive a packet with its sequence number
 def recvfrom_seq(sock, recv_size):
     recv_data, resp_addr = sock.recvfrom(recv_size)
     seq = int(recv_data[0])
     recv_content = recv_data[1:]
     return (recv_content, resp_addr, seq)
 
+# send a packet and wait timeout_seconds for an ACK as a response,
+# trying up to max_retries. Raise an exception if this isn't  done
+# If the response has a seq that is not expected_seq, also throw
+# an exception
 def send_with_ack(sock, addr, data, recv_size, timeout_seconds, seq, max_retries=5, expected_seq=None):
     print('{}: Sending data and expecting an ack'.format(datetime.now().strftime("%H:%M:%S.%f")))
     attempts = 0
@@ -53,6 +66,9 @@ def send_with_ack(sock, addr, data, recv_size, timeout_seconds, seq, max_retries
         attempts += 1
     raise NoACKException('Did not receive an ACK after {} attempts'.format(attempts))
 
+# Receive a packet from the network, waiting timeout_seconds for it
+# and don't retry. If a packet isn't read or if it has a seq that is not
+# expected_seq, return None
 def recv_timeout(sock, recv_size, timeout_seconds, expected_seq=None):
     if timeout_seconds is not None:
         timeout_seconds = float(timeout_seconds)
@@ -72,6 +88,11 @@ def recv_timeout(sock, recv_size, timeout_seconds, expected_seq=None):
 
     return (None, None, None)
 
+# Receive a packet, wait timeout_seconds for it,
+# trying up to max_retries. Raise an exception if this isn't  done
+# Afterwards, send an ACK.
+# If the received packet has a seq that is not expected_seq, also throw
+# an exception
 def recv_with_ack(sock, data, recv_size, timeout_seconds, seq, max_retries=5, expected_seq=None):
     print('{}; Receiving data and sending an ack'.format(datetime.now().strftime("%H:%M:%S.%f")))
     attempts = 0
@@ -95,18 +116,19 @@ def recv_with_ack(sock, data, recv_size, timeout_seconds, seq, max_retries=5, ex
         attempts += 1
     raise RuntimeError('Did not receive an ACK after {} attempts'.format(attempts))
 
+# Read a chunk from the network and return its file sequence and contents
 def receive_chunk(sock):
     file_content, resp_addr, seq = recvfrom_seq(sock, PACKET_SIZE)
 
     if seq < SEQ_OFFSET:
         raise WrongSeqException("receive_chunk got wrong seq")
 
-    seq = seq - SEQ_OFFSET
-    print("Got chunk {} of length {}".format(seq + 1, len(file_content)))
-    print("ACK chunk {}".format(seq))
-    sendto_seq(sock, resp_addr, "-".encode(), seq + SEQ_OFFSET) # ack chunk
-    return seq, file_content
+    file_seq = seq - SEQ_OFFSET
+    print("Got chunk {} of length {}".format(file_seq + 1, len(file_content)))
+    sendto_seq(sock, resp_addr, "-".encode(), seq) # ack chunk
+    return file_seq, file_content
 
+# Receive a whole file from the network in chunks.
 def receive_file(sock, server_address, dest_path, filesize):
     total_chunks = math.ceil(filesize / CHUNK_SIZE)
     chunks_not_received = list(range(0, total_chunks))
@@ -146,6 +168,8 @@ def receive_file(sock, server_address, dest_path, filesize):
 
     print('Successfully got the file')
 
+
+# Send a list of chunks over the network
 def send_chunks(sock, server_address, chunk_indexes, file_content):
     total_chunks = len(file_content)
     chunks_not_ackowledged = list(range(0, total_chunks))
@@ -155,7 +179,7 @@ def send_chunks(sock, server_address, chunk_indexes, file_content):
         sendto_seq(sock, server_address, file_content[i], i + SEQ_OFFSET) # ack chunk
 
 
-
+# Send a whole file over the network in chunks.
 def send_file(sock, server_address, file_path):
     filesize = os.path.getsize(file_path)
     total_chunks = math.ceil(filesize / CHUNK_SIZE)

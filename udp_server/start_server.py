@@ -28,46 +28,25 @@ def start_server(server_address, storage_dir):
         while True:
             handle_connection(sock, server_address, storage_dir)
 
-def handle_handshake(sock, server_address):
-    while True:
-        time.sleep(2)
-        data_raw, addr = udp_common.recv_with_ack(
-            sock,
-            b'1',
-            1024,
-            None,
-            0,
-            expected_seq=0
-        )
-        print('received metadata and sent ack')
-        data_raw_str = data_raw.decode()
-        try:
-            metadata = json.loads(data_raw_str)
-            if isinstance(metadata, collections.Mapping):
-                print('metadata')
-                print(metadata)
-                return (addr, metadata)
-        except json.decoder.JSONDecodeError:
-            print('Got bogus data, ignoring', data_raw_str)
-            pass
-        else:
-            print('Got bogus data, ignoring', data_raw_str)
 
 def handle_connection(sock, server_address, storage_dir):
-
     try:
         # Fresh start
         (client_addr, metadata) = handle_handshake(sock, server_address)
         state = UDPState.GOT_METADATA
 
-        # Have metadata
+        # At this point we have the metadata
+        # of the action the client wants to do.
+        # It will always involve a file, so parse that
         filename = metadata['filename']
         dest_path = "{}/{}".format(storage_dir, filename)
 
         if metadata['action'] == 'u':
+            # Upload
             filesize = metadata['filesize']
             udp_common.receive_file(sock, client_addr, dest_path, filesize)
         elif metadata['action'] == 'd':
+            # Download
             try:
                 filesize = os.path.getsize(dest_path)
                 filesize_raw = bytes(str(filesize), 'utf8')
@@ -89,3 +68,25 @@ def handle_connection(sock, server_address, storage_dir):
     except udp_common.WrongSeqException:
         print("Got an unexpected sequence number. Aborting...")
         pass
+
+def handle_handshake(sock, server_address):
+    while True:
+        data_raw, addr = udp_common.recv_with_ack(
+            sock,
+            b'1',
+            1024,
+            None,
+            0,
+            expected_seq=0
+        )
+        print('received metadata and sent ack')
+        data_raw_str = data_raw.decode()
+        try:
+            metadata = json.loads(data_raw_str)
+            if isinstance(metadata, collections.Mapping):
+                print('metadata')
+                print(metadata)
+                return (addr, metadata)
+        except json.decoder.JSONDecodeError:
+            print('Got bogus data, ignoring', data_raw_str)
+            pass

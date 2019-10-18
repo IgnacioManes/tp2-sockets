@@ -25,9 +25,11 @@ def send_with_ack(sock, addr, data, recv_size, timeout_seconds, max_retries=5):
 def recv_with_ack(sock, data, recv_size, timeout_seconds, max_retries=5):
     print('{}; Receiving data and sending an ack'.format(datetime.now().strftime("%H:%M:%S.%f")))
     attempts = 0
+    if timeout_seconds is not None:
+        timeout_seconds = float(timeout_seconds)
     while attempts < max_retries:
         try:
-            sock.settimeout(float(timeout_seconds))
+            sock.settimeout(timeout_seconds)
             recv_data, resp_addr = sock.recvfrom(recv_size)
             sock.settimeout(None)
             print('Received data... Sending an ack')
@@ -43,14 +45,19 @@ def receive_file(sock, server_address, dest_path, filesize):
     chunks_received = 0
     print("Receiving file {} of size {}kB".format(dest_path, math.ceil(filesize/1024)))
     print("Need to get {} chunks".format(total_chunks))
+    file_data = [None] * total_chunks
     with open(dest_path, 'wb') as f:
         while chunks_received != total_chunks:
             data = sock.recv(PACKET_SIZE)
             chunks_received += 1
             seq = int(data[0])
             file_content = data[1:]
-            print("Got chunk {}/{} of length {}".format(chunks_received, total_chunks, len(file_content)))
-            f.write(file_content)
+            print("Got chunk {}/{} of length {}".format(seq + 1, total_chunks, len(file_content)))
+            file_data[seq] = file_content
+        print('got all chunks. writing...')
+        for chunk in file_data:
+            f.write(chunk)
+
     print('Successfully got the file')
 
 

@@ -47,7 +47,7 @@ def handle_handshake(sock, server_address):
         sock,
         b'1',
         1024,
-        5
+        None
     )
     print('received metadata and sent ack')
     data_raw_str = data_raw.decode()

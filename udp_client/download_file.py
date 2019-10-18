@@ -26,9 +26,10 @@ def download_file(server_address, name, dst):
         server_address,
         message_json.encode(),
         1,
-        5,
-        50,
-        expected_seq=50
+        2,
+        0,
+        max_retries=20,
+        expected_seq=0
     )
     print('sent metadata and got ack')
 
@@ -36,9 +37,10 @@ def download_file(server_address, name, dst):
         sock,
         b'1',
         1024,
-        5,
-        51,
-        expected_seq=51
+        2,
+        1,
+        max_retries=20,
+        expected_seq=1
     )
 
     server_filesize = int(str(server_filesize_raw, 'utf8'))

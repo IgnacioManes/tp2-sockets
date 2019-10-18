@@ -36,8 +36,8 @@ def handle_handshake(sock, server_address):
             b'1',
             1024,
             None,
-            50,
-            expected_seq=50
+            0,
+            expected_seq=0
         )
         print('received metadata and sent ack')
         data_raw_str = data_raw.decode()
@@ -54,13 +54,13 @@ def handle_handshake(sock, server_address):
             print('Got bogus data, ignoring', data_raw_str)
 
 def handle_connection(sock, server_address, storage_dir):
-    state = UDPState.FRESH_START
 
-    if state == UDPState.FRESH_START:
+    try:
+        # Fresh start
         (client_addr, metadata) = handle_handshake(sock, server_address)
         state = UDPState.GOT_METADATA
 
-    if state == UDPState.GOT_METADATA:
+        # Have metadata
         filename = metadata['filename']
         dest_path = "{}/{}".format(storage_dir, filename)
 
@@ -68,15 +68,24 @@ def handle_connection(sock, server_address, storage_dir):
             filesize = metadata['filesize']
             udp_common.receive_file(sock, client_addr, dest_path, filesize)
         elif metadata['action'] == 'd':
-            filesize = os.path.getsize(dest_path)
-            filesize_raw = bytes(str(filesize), 'utf8')
-            udp_common.send_with_ack(
-                sock,
-                client_addr,
-                filesize_raw,
-                1,
-                5,
-                1,
-                expected_seq=51
-            )
-            udp_common.send_file(sock, client_addr, dest_path)
+            try:
+                filesize = os.path.getsize(dest_path)
+                filesize_raw = bytes(str(filesize), 'utf8')
+                udp_common.send_with_ack(
+                    sock,
+                    client_addr,
+                    filesize_raw,
+                    1,
+                    5,
+                    1,
+                    expected_seq=1
+                )
+                udp_common.send_file(sock, client_addr, dest_path)
+            except FileNotFoundError:
+                print("Requested file was not found. Aborting...")
+            except udp_common.NoACKException:
+                print("Did not get a correct ACK. Aborting...")
+
+    except udp_common.WrongSeqException:
+        print("Got an unexpected sequence number. Aborting...")
+        pass

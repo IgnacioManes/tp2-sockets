@@ -7,14 +7,19 @@ import time
 from udp_common import udp_common
 
 # A file is split into chunks of size CHUNK_SIZE
-CHUNK_SIZE = 25
+CHUNK_SIZE = 1024
+SEQ_SIZE = 4
 
 # One byte is used to specify the sequence number
-PACKET_SIZE = CHUNK_SIZE + 1
+PACKET_SIZE = CHUNK_SIZE + SEQ_SIZE
 
 # Sequence numbers are offset by this constant
 # to reserve space for special handshake ones
 SEQ_OFFSET = 10
+
+# Sequence number to specify that we wish to
+# close the connection
+FIN_SEQ = 4
 
 class WrongSeqException(Exception):
     pass
@@ -25,7 +30,7 @@ class NoACKException(Exception):
 # Given a sequence number and a data byte array,
 # create a new byte array that has the sequence number prepended
 def seq_data(seq, data):
-    seq_section = bytes([seq])
+    seq_section = seq.to_bytes(SEQ_SIZE, byteorder="little")
     data_section = bytearray(data)
     return seq_section + data_section
 
@@ -37,8 +42,8 @@ def sendto_seq(sock, addr, data, seq):
 # receive a packet with its sequence number
 def recvfrom_seq(sock, recv_size):
     recv_data, resp_addr = sock.recvfrom(recv_size)
-    seq = int(recv_data[0])
-    recv_content = recv_data[1:]
+    seq = int.from_bytes(recv_data[0:SEQ_SIZE], byteorder="little")
+    recv_content = recv_data[SEQ_SIZE:]
     return (recv_content, resp_addr, seq)
 
 # send a packet and wait timeout_seconds for an ACK as a response,
@@ -160,10 +165,13 @@ def receive_file(sock, server_address, dest_path, filesize):
 
         print("Got seq", seq)
         if seq >= SEQ_OFFSET:
-            sendto_seq(sock, server_address, "-".encode(), seq) # ack chunk
+            # This is an ACK that the other party did not receive
+            # Send the special FIN seq number.
+            sendto_seq(sock, server_address, "-".encode(), FIN_SEQ) # ack chunk
         else:
             print('Got fin!')
-            sendto_seq(sock, server_address, "-".encode(), 3) # ack chunk
+            got_fin = True
+            sendto_seq(sock, server_address, "-".encode(), FIN_SEQ) # ack chunk
             break
 
     print('Successfully got the file')
@@ -192,13 +200,13 @@ def send_file(sock, server_address, file_path):
         data = f.read(CHUNK_SIZE)
         while data:
             file_content.append(data)
-            data = f.read(25)
+            data = f.read(CHUNK_SIZE)
     print("len", len(chunks_not_ackowledged))
     while len(chunks_not_ackowledged) > 0:
         print("chunks_not_ackowledged", chunks_not_ackowledged)
         send_chunks(sock, server_address, chunks_not_ackowledged, file_content)
 
-        time.sleep(0.5)
+        time.sleep(1)
         print("chunks_not_ackowledged", chunks_not_ackowledged)
         chunks_to_remove = []
         for c in chunks_not_ackowledged:
@@ -207,6 +215,12 @@ def send_file(sock, server_address, file_path):
 
             if resp is None:
                 # We got a timeout, send chunks again
+                break
+            elif ack_seq == FIN_SEQ:
+                # The other party has received all of our chunks.
+                # Dont send more.
+                print("The other party has received all of our chunks")
+                chunks_not_ackowledged = []
                 break
             elif ack_seq < SEQ_OFFSET:
                 raise WrongSeqException("send_file got wrong seq")
@@ -226,8 +240,8 @@ def send_file(sock, server_address, file_path):
             "FIN".encode(),
             1,
             1,
-            3,
-            expected_seq=3
+            FIN_SEQ,
+            expected_seq=FIN_SEQ
         )
     except udp_common.udp_common.NoACKException:
         print("Did not get a FIN ack from other party, assume closed connection")

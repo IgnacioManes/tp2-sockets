@@ -119,7 +119,7 @@ def recv_with_ack(sock, data, recv_size, timeout_seconds, seq, max_retries=5, ex
             print('Timeout while receiving data...')
         
         attempts += 1
-    raise RuntimeError('Did not receive an ACK after {} attempts'.format(attempts))
+    raise NoACKException('Did not receive an ACK after {} attempts'.format(attempts))
 
 # Read a chunk from the network and return its file sequence and contents
 def receive_chunk(sock):
@@ -129,7 +129,7 @@ def receive_chunk(sock):
         raise WrongSeqException("receive_chunk got wrong seq")
 
     file_seq = seq - SEQ_OFFSET
-    print("Got chunk {} of length {}".format(file_seq + 1, len(file_content)))
+    # print("Got chunk {} of length {}".format(file_seq + 1, len(file_content)))
     sendto_seq(sock, resp_addr, "-".encode(), seq) # ack chunk
     return file_seq, file_content
 
@@ -163,7 +163,6 @@ def receive_file(sock, server_address, dest_path, filesize):
             print("Did not get FIN, assume client closed connection")
             break
 
-        print("Got seq", seq)
         if seq >= SEQ_OFFSET:
             # This is an ACK that the other party did not receive
             # Send the special FIN seq number.
@@ -172,7 +171,6 @@ def receive_file(sock, server_address, dest_path, filesize):
             print('Got fin!')
             got_fin = True
             sendto_seq(sock, server_address, "-".encode(), FIN_SEQ) # ack chunk
-            break
 
     print('Successfully got the file')
 
@@ -180,10 +178,13 @@ def receive_file(sock, server_address, dest_path, filesize):
 # Send a list of chunks over the network
 def send_chunks(sock, server_address, chunk_indexes, file_content):
     total_chunks = len(file_content)
+    chunks_to_send = len(chunk_indexes)
     chunks_not_ackowledged = list(range(0, total_chunks))
+    
+    print("Sending {} chunks".format(chunks_to_send))
 
     for i in chunk_indexes:
-        print("Sending chunk {}/{} of length {}".format(i + 1, total_chunks, len(file_content[i])))
+        # print("Sending chunk {}/{} of length {}".format(i + 1, total_chunks, len(file_content[i])))
         sendto_seq(sock, server_address, file_content[i], i + SEQ_OFFSET) # ack chunk
 
 
@@ -201,16 +202,13 @@ def send_file(sock, server_address, file_path):
         while data:
             file_content.append(data)
             data = f.read(CHUNK_SIZE)
-    print("len", len(chunks_not_ackowledged))
     while len(chunks_not_ackowledged) > 0:
-        print("chunks_not_ackowledged", chunks_not_ackowledged)
         send_chunks(sock, server_address, chunks_not_ackowledged, file_content)
 
         time.sleep(1)
-        print("chunks_not_ackowledged", chunks_not_ackowledged)
+        print("chunks_not_ackowledged", len(chunks_not_ackowledged))
         chunks_to_remove = []
         for c in chunks_not_ackowledged:
-            print("chunks_not_ackowledged", c)
             resp, resp_addr, ack_seq = udp_common.recv_timeout(sock, 15, 1)
 
             if resp is None:
@@ -226,12 +224,13 @@ def send_file(sock, server_address, file_path):
                 raise WrongSeqException("send_file got wrong seq")
             else:
                 ack_seq = ack_seq - SEQ_OFFSET
-                print("Got ack for {}, removing from list".format(ack_seq + 1))
+                # print("Got ack for {}, removing from list".format(ack_seq + 1))
                 if ack_seq in chunks_not_ackowledged:
                     chunks_to_remove.append(ack_seq)
         
         for ack_seq in chunks_to_remove:
-            chunks_not_ackowledged.remove(ack_seq)
+            if ack_seq in chunks_not_ackowledged:
+                chunks_not_ackowledged.remove(ack_seq)
 
     try:
         udp_common.send_with_ack(

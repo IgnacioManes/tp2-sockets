@@ -71,22 +71,28 @@ def handle_connection(sock, server_address, storage_dir):
 
 def handle_handshake(sock, server_address):
     while True:
-        data_raw, addr = udp_common.recv_with_ack(
-            sock,
-            b'1',
-            1024,
-            None,
-            0,
-            expected_seq=0
-        )
-        print('received metadata and sent ack')
-        data_raw_str = data_raw.decode()
         try:
+            data_raw, addr = udp_common.recv_with_ack(
+                sock,
+                b'1',
+                1024,
+                None,
+                0,
+                expected_seq=0
+            )
+            print('received metadata and sent ack')
+            data_raw_str = data_raw.decode()
             metadata = json.loads(data_raw_str)
             if isinstance(metadata, collections.Mapping):
                 print('metadata')
                 print(metadata)
                 return (addr, metadata)
         except json.decoder.JSONDecodeError:
-            print('Got bogus data, ignoring', data_raw_str)
+            print('Got bogus data, ignoring')
+            pass
+        except udp_common.WrongSeqException:
+            print("Got an unexpected sequence number. Continuing...")
+            pass
+        except udp_common.NoACKException:
+            print("Did not get a correct ACK. Continuing...")
             pass

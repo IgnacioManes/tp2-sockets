@@ -55,4 +55,6 @@ def download_file(server_address, name, dst):
             file_downloaded = True
         except udp_common.udp_common.NoACKException:
             pass
+        except udp_common.udp_common.WrongSeqException:
+            pass
   pass

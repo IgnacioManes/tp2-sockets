@@ -1,9 +1,42 @@
+from datetime import datetime
 import math
 import os
 import socket
 
 CHUNK_SIZE = 25
 PACKET_SIZE = CHUNK_SIZE + 1
+
+def send_with_ack(sock, addr, data, recv_size, timeout_seconds, max_retries=5):
+    print('{}: Sending data and expecting an ack'.format(datetime.now().strftime("%H:%M:%S.%f")))
+    attempts = 0
+    while attempts < max_retries:
+        try:
+            sock.sendto(data, addr)
+            print('Sent data... Waiting for an ack')
+            sock.settimeout(float(timeout_seconds))
+            recv_data, resp_addr = sock.recvfrom(recv_size)
+            sock.settimeout(None)
+            return (recv_data, resp_addr)
+        except socket.timeout:
+            print('Timeout while receiving an ack...')
+            attempts += 1
+    raise RuntimeError('Did not receive an ACK after {} attempts'.format(attempts))
+
+def recv_with_ack(sock, data, recv_size, timeout_seconds, max_retries=5):
+    print('{}; Receiving data and sending an ack'.format(datetime.now().strftime("%H:%M:%S.%f")))
+    attempts = 0
+    while attempts < max_retries:
+        try:
+            sock.settimeout(float(timeout_seconds))
+            recv_data, resp_addr = sock.recvfrom(recv_size)
+            sock.settimeout(None)
+            print('Received data... Sending an ack')
+            sock.sendto(data, resp_addr)
+            return (recv_data, resp_addr)
+        except socket.timeout:
+            print('Timeout while receiving data...')
+            attempts += 1
+    raise RuntimeError('Did not receive an ACK after {} attempts'.format(attempts))
 
 def receive_file(sock, server_address, dest_path, filesize):
     total_chunks = math.ceil(filesize / CHUNK_SIZE)

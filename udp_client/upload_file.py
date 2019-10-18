@@ -22,8 +22,13 @@ def upload_file(server_address, src, name):
       "filesize": filesize,
     }
     message_json = json.dumps(message)
-    sock.sendto(message_json.encode(), server_address)
 
-    server_ack, addr = sock.recvfrom(1)
+    udp_common.send_with_ack(
+        sock,
+        server_address,
+        message_json.encode(),
+        1,
+        5
+    )
 
     udp_common.send_file(sock, server_address, src)

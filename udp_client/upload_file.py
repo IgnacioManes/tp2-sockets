@@ -28,7 +28,9 @@ def upload_file(server_address, src, name):
         server_address,
         message_json.encode(),
         1,
-        5
+        5,
+        50,
+        expected_seq=50
     )
 
     udp_common.send_file(sock, server_address, src)

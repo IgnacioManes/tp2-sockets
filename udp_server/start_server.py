@@ -13,21 +13,6 @@ class UDPState:
     GOT_METADATA = 2
     FILE_RECEIVED = 3
 
-def store_file(sock, server_address, storage_dir, metadata):
-    print(metadata)
-    total_chunks = math.ceil(metadata['filesize'] / 25)
-    chunks_received = 0
-    print("Need to get {} chunks".format(total_chunks))
-    with open("{}/{}".format(storage_dir, metadata['filename']), 'wb') as f:
-        while chunks_received != total_chunks:
-            data = sock.recv(1025)
-            chunks_received += 1
-            seq = int(data[0])
-            file_content = data[1:]
-            print("Got chunk {}/{} of length {}".format(chunks_received, total_chunks, len(file_content)))
-            f.write(data)
-    print('Successfully got the file')
-
 def start_server(server_address, storage_dir):
     # TODO: Implementar UDP server
     print('UDP: start_server({}, {})'.format(server_address, storage_dir))
@@ -50,7 +35,9 @@ def handle_handshake(sock, server_address):
             sock,
             b'1',
             1024,
-            None
+            None,
+            50,
+            expected_seq=50
         )
         print('received metadata and sent ack')
         data_raw_str = data_raw.decode()
@@ -88,6 +75,8 @@ def handle_connection(sock, server_address, storage_dir):
                 client_addr,
                 filesize_raw,
                 1,
-                5
+                5,
+                1,
+                expected_seq=51
             )
             udp_common.send_file(sock, client_addr, dest_path)

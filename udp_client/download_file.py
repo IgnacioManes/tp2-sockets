@@ -50,7 +50,9 @@ def download_file(server_address, name, dst):
             server_filesize = int(str(server_filesize_raw, 'utf8'))
 
             print('got filesize {}'.format(server_filesize))
-
+            directory = os.path.dirname(dst)
+            if not os.path.exists(directory):
+                os.makedirs(directory)
             udp_common.receive_file(sock, server_address, dst, int(server_filesize))
             file_downloaded = True
         except udp_common.udp_common.NoACKException:

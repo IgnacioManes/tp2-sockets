@@ -7,8 +7,9 @@ import time
 from udp_common import udp_common
 
 # A file is split into chunks of size CHUNK_SIZE
-CHUNK_SIZE = 1024
+CHUNK_SIZE = 128
 SEQ_SIZE = 4
+CHUNKS_TO_SEND = 256
 
 # One byte is used to specify the sequence number
 PACKET_SIZE = CHUNK_SIZE + SEQ_SIZE
@@ -203,12 +204,15 @@ def send_file(sock, server_address, file_path):
             file_content.append(data)
             data = f.read(CHUNK_SIZE)
     while len(chunks_not_ackowledged) > 0:
-        send_chunks(sock, server_address, chunks_not_ackowledged, file_content)
+        n_chunks_to_send = min(len(chunks_not_ackowledged), CHUNKS_TO_SEND) * -1
+        chunks_to_send = chunks_not_ackowledged[n_chunks_to_send:]
+    
+        send_chunks(sock, server_address, chunks_to_send, file_content)
 
-        time.sleep(1)
+        #time.sleep(1)
         print("chunks_not_ackowledged", len(chunks_not_ackowledged))
         chunks_to_remove = []
-        for c in chunks_not_ackowledged:
+        for c in chunks_to_send:
             resp, resp_addr, ack_seq = udp_common.recv_timeout(sock, 15, 1)
 
             if resp is None:
